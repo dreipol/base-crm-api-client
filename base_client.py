@@ -55,6 +55,26 @@ DEAL_STAGES = [
     'unqualified',
 ]
 
+LEAD_PARAMS = {
+    'last_name': '',
+    'company_name': '',
+    'first_name': '',
+    'email': '',
+    'phone': '',
+    'mobile': '',
+    'twitter': '',
+    'skype': '',
+    'facebook': '',
+    'linkedin': '',
+    'street':'',
+    'zip':'',
+    'region':'',
+    'city':'',
+    'country':'',
+    'title':'',
+    'description':'',
+}
+
 
 def _unicode_dict(d):
     new_dict = {}
@@ -84,6 +104,7 @@ class BaseAPIService(object):
                     'xml'
         """
         self.base_url = 'https://sales.futuresimple.com/api/v1/'
+        self.leads_url = 'https://leads.futuresimple.com/api/v1/'
 
         if format == 'json':
             self.format = '.json'
@@ -98,7 +119,10 @@ class BaseAPIService(object):
             self.auth_failed = True
         else:
             # Set URL header for future requests
-            self.header = {"X-Pipejump-Auth": self.token}
+            self.header = {
+                    "X-Pipejump-Auth": self.token, 
+                    "X-Futuresimple-Token": self.token
+                }
             self.auth_failed = False
 
     ##########################
@@ -510,3 +534,104 @@ class BaseAPIService(object):
         data = response.read()
 
         return data
+
+    ##########################
+    # Leads Functions
+    ##########################
+    def get_leads(self, page=1, sort_by=None):
+        """
+        Gets leads object
+        """
+        leads_url = 'leads' + self.format
+        url = self.leads_url + sources_url
+
+        params = urllib.urlencode({
+                'page' : page,
+                'sort_by' : sort_by,
+                })
+
+        # Append parameters
+        full_url = url + '?' + params
+
+        req = urllib2.Request(full_url, headers=self.header)
+        response = urllib2.urlopen(req)
+        data = response.read()
+
+        return data
+
+    def get_lead(self, lead_id):
+        """
+        Gets the lead with the given lead_id.  Returns the lead info.
+        """
+        self._get_lead(lead_id=lead_id)
+
+    def create_lead(self, lead_info):
+        """
+        Creates a new lead based on lead_info with fields shown in LEAD_PARAMS.
+        Returns a json or xml response.
+        """
+        return self._post_lead(lead_info=lead_info, lead_id=None)
+
+    def update_lead(self, lead_info, lead_id):
+        """
+        Edits leads with the unique lead_id based on lead_info with fields shown in LEAD_PARAMS.
+        Returns a json or xml response.
+        """
+        return self._post_lead(lead_info=lead_info, lead_id=lead_id)
+
+    def _get_lead(self, lead_id, force_json=False):
+        """
+        Gets the lead with the given lead_id.  Returns the lead info.
+        Allows for forcing of json data if we need to update specific fields.
+        """
+        if force_json:
+            lead_url = 'leads/%s%s' % (lead_id, '.json')
+        else:
+            lead_url = 'leads/%s%s' % (lead_id, self.format)
+
+        url = self.leads_url + lead_url
+        req = urllib2.Request(url, headers=self.header)
+        response = urllib2.urlopen(req)
+        data = response.read()
+
+        return data
+
+    def _post_lead(self, lead_info={}, lead_id=None):
+        """
+        Creates a new lead if lead_id == None.
+        Otherwise, edits lead with the given id.
+        """
+        lead_url = 'leads'
+        if lead_id != None:
+            lead_url += '/%s' % str(contact_id)
+        lead_url += self.format
+
+        url = self.leads_url + lead_url
+
+        # If we are creating a new lead, we must have last_name and email parameters
+        # and we always must have some parameter
+        if lead_info == {} or \
+                (lead_id == None and 'last_name' not in lead_info.keys() and
+                'email' not in lead_info.keys()):
+            return
+
+        final_params = {}
+
+        for key in lead_info.keys():
+            if key not in LEAD_PARAMS.keys():
+                return
+            else:
+                final_params['lead[' + key + ']'] = lead_info[key]
+
+        params = urllib.urlencode(_unicode_dict(final_params))
+
+        req = urllib2.Request(url, data=params, headers=self.header)
+
+        if lead_id != None:
+            req.get_method = lambda: 'PUT'
+        response = urllib2.urlopen(req)
+        data = response.read()
+
+        return data
+
+
